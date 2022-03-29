@@ -137,8 +137,8 @@ A list of community libraries that provide similar matching functionality:
 
 ```jsx
 match (res) {
-  when ({ status: 200, body, ...rest }): handleData(body, rest)
-  when ({ status, destination: url }) if (300 <= status && status < 400):
+  when ({ status: 200, const body, ...const rest }): handleData(body, rest)
+  when ({ const status, destination: const url }) if (300 <= status && status < 400):
     handleRedirect(url)
   when ({ status: 500 }) if (!this.hasRetried): do {
     retry(req);
@@ -180,8 +180,8 @@ match (res) {
 
 ```jsx
 match (command) {
-  when ([ 'go', dir and ('north' or 'east' or 'south' or 'west')]): ...
-  when ([ 'take', item and /[a-z]+ ball/ and { weight }]): ...
+  when ([ 'go', const dir and ('north' or 'east' or 'south' or 'west')]): ...
+  when ([ 'take', const item and /[a-z]+ ball/ and { const weight }]): ...
   default: ...
 }
 ```
@@ -214,8 +214,8 @@ makes that binding available to the RHS.
 ```jsx
 match (res) {
   if (isEmpty(res)): ...
-  when ({ data: [page] }): ...
-  when ({ data: [frontPage, ...pages] }): ...
+  when ({ data: [const page] }): ...
+  when ({ data: [const frontPage, ...const pages] }): ...
   default: { ... }
 }
 ```
@@ -242,7 +242,7 @@ semantics.)
 ```jsx
 match (arithmeticStr) {
   when (/(?<left>\d+) \+ (?<right>\d+)/): process(left, right);
-  when (/(\d+) \* (\d+)/) with ([_, left, right]): process(left, right);
+  when (/(\d+) \* (\d+)/) with ([_, const left, const right]): process(left, right);
   default: ...
 }
 ```
@@ -281,22 +281,22 @@ const LF = 0x0a;
 const CR = 0x0d;
 
 match (nextChar()) {
-  when (${LF}): ...
-  when (${CR}): ...
+  when (LF): ...
+  when (CR): ...
   default: ...
 }
 ```
 
-Here we see the [**interpolation operator**](#interpolation-pattern) (`${}`),
+~Here we see the [**interpolation operator**](#interpolation-pattern) (`${}`),
 which escapes from "pattern mode" syntax to "expression mode" syntax. It is
-conceptually very similar to using `${}` in template strings.
+conceptually very similar to using `${}` in template strings.~
 
-Written as just `LF`, `LF` is an [identifier pattern](#identifier-pattern),
+~Written as just `LF`, `LF` is an [identifier pattern](#identifier-pattern),
 which would always match regardless of the value of the [matchable](#matchable)
 (`nextChar()`) and bind it to the given name (`LF`), shadowing the outer
-`const LF = 0x0a` declaration at the top.
+`const LF = 0x0a` declaration at the top.~
 
-Written as `${LF}`, `LF` is evaluated as an expression, which results in the
+~Written as `${LF}`,~ `LF` is evaluated as an expression, which results in the
 primitive `Number` value `0x0a`. This value is then treated as a
 [literal Number pattern](#primitive-pattern), and the [clause](#clause) matches
 if the [matchable](#matchable) is `0x0a`. The RHS sees no new bindings.
@@ -315,6 +315,9 @@ class Option {
     if(this.hasValue) return this._value;
     throw new Exception("Can't get the value of an Option.None.");
   }
+  match(val) {
+    return (val instanceof Option && hasValue == val.hasValue && ('match' in _value ? _value.match(val._value) : _value == val._value));
+  }
   static Some(val) {
     return new Option(true, val);
   }
@@ -323,57 +326,36 @@ class Option {
   }
 }
 
-Option.Some[Symbol.matcher] = (val)=>({
-  matched: val instanceof Option && val.hasValue,
-  value: val.value,
-});
-Option.None[Symbol.matcher] = (val)=>({
-  matched: val instanceof Option && !val.hasValue
-});
-
-match(result) {
-  when (${Option.Some} with val): console.log(val);
-  when (${Option.None}): console.log("none");
-}
-```
-
-In this sample implementation of the common "Option" type,
-the expressions inside `${}` are the static "constructors" `Option.Some` and `Option.None`,
-which have a `Symbol.matcher` method. That method is invoked with the
-[matchable](#matchable) (`result`) as its sole argument. The
-[interpolation pattern](#interpolation-pattern) is considered to have matched if
-the `Symbol.matcher` method returns an object with a truthy `matched` property.
-Any other return value (including `true` by itself) indicates a failed match. (A
-thrown error percolates up the expression tree, as usual.)
-
-The [interpolation pattern](#interpolation-pattern) can optionally chain into
-another pattern using [`with` chaining](#with-chaining), which matches against
-the `value` property of the object returned by the `Symbol.matcher` method;
-in this case, it allows `Option.Some` to expose the value inside of the `Option`.
-
-Dynamic custom matchers can readily be created, opening a world of
-possibilities:
-
-```jsx
-function asciiCI(str) {
+assignTo(name) {
   return {
-    [Symbol.matcher](matchable) {
-      return {
-        matched: str.toLowerCase() == matchable.toLowerCase()
-      };
-    }
+    match(val) => { group: { [name]: val } }
   }
 }
 
-match (cssProperty) {
-  when ({ name: name and ${asciiCI("color")}, value }):
-    console.log("color: " + value);
-    // matches if `name` is an ASCII case-insensitive match
-    // for "color", so `{name:"COLOR", value:"red"} would match.
+match(result) {
+  when (Option.Some(assignTo(val)): console.log(val);
+  when (Option.None): console.log("none");
 }
 ```
 
+Any object with a `match` method is treated as a custom matcher; the object is
+considered to have matched if the method returns a truthy result. As with regular
+expressions, if there is a `group` member in the result, its members will be
+assigned to variables. (A thrown error percolates up the expression tree, as usual.)
+
+Within a match expression, `const x` is turned into a matcher like `assignTo` in
+the above, so one could also write:
+
+```
+when (Option.Some(const val)): console.log(val)
+```
+
+In this case, it would be a runtime error for val not to appear in a truthy result
+of the custom matcher.
+
 ## Built-in custom matchers
+
+(Not updated)
 
 ```jsx
 match (value) {
@@ -406,17 +388,19 @@ Matching `fetch()` responses:
 ```jsx
 const res = await fetch(jsonService)
 match (res) {
-  when ({ status: 200, headers: { 'Content-Length': s } }):
+  when ({ status: 200, headers: { 'Content-Length': const s } }):
     console.log(`size is ${s}`);
   when ({ status: 404 }):
     console.log('JSON not found');
-  when ({ status }) if (status >= 400): do {
+  when ({ const status }) if (status >= 400): do {
     throw new RequestError(res);
   }
 };
 ```
 
 ---
+
+(No updates made beyond this point)
 
 More concise, more functional handling of Redux reducers (compare with
 [this same example in the Redux documentation](https://redux.js.org/basics/reducers#splitting-reducers)):
